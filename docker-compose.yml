@@ -1,0 +1,70 @@
+version: '3.9'
+
+volumes:
+  atlasdb-postgres-data:
+    name: atlasdb-postgres-data
+
+services:
+
+  broadsea-omop-vocab-load:
+    profiles: [ "omop-vocab-pg-load" ]
+    container_name: omop-vocab-load
+    extends:
+      file: "postgres-load.yml"
+      service: broadsea-postgres-load
+    environment:
+      VOCAB_PG_HOST: ${VOCAB_PG_HOST}
+      VOCAB_PG_DATABASE: ${VOCAB_PG_DATABASE}
+      VOCAB_PG_SCHEMA: ${VOCAB_PG_SCHEMA}
+      VOCAB_PG_USER: ${VOCAB_PG_USER}
+      VOCAB_PG_PASSWORD: ${VOCAB_PG_PASSWORD}
+      UMLS_API_KEY: ${UMLS_API_KEY}
+    volumes:
+      - ./omop_vocab:/tmp
+    entrypoint: ["sh", "/tmp/scripts/load_omop_vocab.sh" ]
+  
+  pgadmin:
+    profiles: ["demo","default"]
+    container_name: pgadmin-broadsea
+    image: dpage/pgadmin4:latest
+    restart: always
+    ports:
+      - "54321:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@bcplatforms.com
+      - PGADMIN_DEFAULT_PASSWORD=test1234
+    volumes:
+      - ./docker_data/pgadmin:/var/lib/pgadmin
+  
+  broadsea-atlasdb:
+    profiles: ["demo"]
+    image: ohdsi/broadsea-atlasdb:2.0.0
+    container_name: broadsea-atlasdb
+    platform: "linux/amd64"
+    cpus: 2
+    mem_limit: "2G"
+    environment:
+      - POSTGRES_PASSWORD=mypass
+    ports:
+      - "5432:5432"
+    volumes:
+     - atlasdb-postgres-data:/var/lib/postgresql/data
+     #- ./100_populate_source_source_daimon.sql:/docker-entrypoint-initdb.d/100_populate_source_source_daimon.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgresql-db:
+    profiles: ["default"]
+    container_name: postgresql-db
+    image: postgres:14.5
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker_data/postgresql-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=test1234 
